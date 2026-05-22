@@ -1,0 +1,16 @@
+# App repos — each has its own remote, not tracked here
+Shoppinglist/
+weeznha wallet/
+miniature-palette/
+weeznha-site/
+
+# Secrets
+.env
+nginx/certs/
+
+# Build artifacts
+auth-service/target/
+
+# IDE
+.idea/
+*.iml
