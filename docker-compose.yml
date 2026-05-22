@@ -35,6 +35,66 @@ services:
     restart: unless-stopped
     # No ports: mapping — auth-service is never directly reachable from outside Docker
 
+  shoppinglist-service:
+    build: ./Shoppinglist/backend
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-weeznha_db}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      AUTH_SERVICE_URL: http://auth-service:8081
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS_SHOPPINGLIST:-http://localhost:3535,https://list.weeznha.com}
+    networks:
+      - weeznha-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    restart: unless-stopped
+
+  wallet-service:
+    build: ./weeznha wallet/backend
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-weeznha_db}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      AUTH_SERVICE_URL: http://auth-service:8081
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS_WALLET:-http://localhost:3000,https://wallet.weeznha.com}
+    networks:
+      - weeznha-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    restart: unless-stopped
+
+  palette-service:
+    build: ./miniature-palette/backend
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-weeznha_db}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      AUTH_SERVICE_URL: http://auth-service:8081
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS_PALETTE:-http://localhost:5173,https://palette.weeznha.com}
+    networks:
+      - weeznha-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    restart: unless-stopped
+
   nginx:
     image: nginx:alpine
     ports:
@@ -47,29 +107,10 @@ services:
       - weeznha-net
     depends_on:
       - auth-service
+      - shoppinglist-service
+      - wallet-service
+      - palette-service
     restart: unless-stopped
-
-  # --- Future services (uncomment as each is built) ---
-  # shoppinglist-service:
-  #   build: ./Shoppinglist/backend
-  #   environment:
-  #     DB_HOST: postgres
-  #     DB_USERNAME: ${DB_USERNAME}
-  #     DB_PASSWORD: ${DB_PASSWORD}
-  #     JWT_SECRET_KEY: ${JWT_SECRET_KEY}
-  #     AUTH_SERVICE_URL: http://auth-service:8081
-  #   networks: [weeznha-net]
-  #   depends_on: [postgres, auth-service]
-
-  # wallet-service:
-  #   build: ./weeznha wallet/backend
-  #   networks: [weeznha-net]
-  #   depends_on: [postgres, auth-service]
-
-  # palette-service:
-  #   build: ./miniature-palette/backend
-  #   networks: [weeznha-net]
-  #   depends_on: [postgres, auth-service]
 
 networks:
   weeznha-net:
