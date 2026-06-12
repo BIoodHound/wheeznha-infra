@@ -5,9 +5,14 @@ services:
       POSTGRES_DB: ${DB_NAME:-weeznha_db}
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+      # Consumed by init-db.sh to create one locked-down role per service
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      SHOPPINGLIST_DB_PASSWORD: ${SHOPPINGLIST_DB_PASSWORD}
+      WALLET_DB_PASSWORD: ${WALLET_DB_PASSWORD}
+      PALETTE_DB_PASSWORD: ${PALETTE_DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/00-init-schemas.sql
+      - ./init-db.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
     networks:
       - weeznha-net
     healthcheck:
@@ -23,15 +28,23 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-weeznha_db}
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      DB_USERNAME: auth_service
+      DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      JWT_PRIVATE_KEY_PATH: /keys/jwt-private.pem
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://weeznha.com,http://localhost:5173}
+    volumes:
+      - ./keys/jwt-private.pem:/keys/jwt-private.pem:ro
     networks:
       - weeznha-net
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/auth/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
     # No ports: mapping — auth-service is never directly reachable from outside Docker
 
@@ -41,18 +54,26 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-weeznha_db}
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      DB_USERNAME: shoppinglist_service
+      DB_PASSWORD: ${SHOPPINGLIST_DB_PASSWORD}
+      JWT_PUBLIC_KEY_PATH: /keys/jwt-public.pem
       AUTH_SERVICE_URL: http://auth-service:8081
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS_SHOPPINGLIST:-http://localhost:3535,https://list.weeznha.com}
+    volumes:
+      - ./keys/jwt-public.pem:/keys/jwt-public.pem:ro
     networks:
       - weeznha-net
     depends_on:
       postgres:
         condition: service_healthy
       auth-service:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/v1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   wallet-service:
@@ -61,18 +82,26 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-weeznha_db}
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      DB_USERNAME: wallet_service
+      DB_PASSWORD: ${WALLET_DB_PASSWORD}
+      JWT_PUBLIC_KEY_PATH: /keys/jwt-public.pem
       AUTH_SERVICE_URL: http://auth-service:8081
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS_WALLET:-http://localhost:3000,https://wallet.weeznha.com}
+    volumes:
+      - ./keys/jwt-public.pem:/keys/jwt-public.pem:ro
     networks:
       - weeznha-net
     depends_on:
       postgres:
         condition: service_healthy
       auth-service:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   palette-service:
@@ -81,39 +110,52 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-weeznha_db}
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      DB_USERNAME: palette_service
+      DB_PASSWORD: ${PALETTE_DB_PASSWORD}
+      JWT_PUBLIC_KEY_PATH: /keys/jwt-public.pem
       AUTH_SERVICE_URL: http://auth-service:8081
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS_PALETTE:-http://localhost:5173,https://palette.weeznha.com}
+    volumes:
+      - ./keys/jwt-public.pem:/keys/jwt-public.pem:ro
     networks:
       - weeznha-net
     depends_on:
       postgres:
         condition: service_healthy
       auth-service:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   nginx:
     image: nginx:alpine
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/certs:/etc/nginx/certs:ro
     networks:
       - weeznha-net
     depends_on:
-      - auth-service
-      - shoppinglist-service
-      - wallet-service
-      - palette-service
+      auth-service:
+        condition: service_healthy
+      shoppinglist-service:
+        condition: service_healthy
+      wallet-service:
+        condition: service_healthy
+      palette-service:
+        condition: service_healthy
     restart: unless-stopped
 
 networks:
   weeznha-net:
+    # Fixed name so app frontend stacks (e.g. miniature-palette) can join it
+    # as an external network and reach their backend service directly.
+    name: weeznha-net
     driver: bridge
 
 volumes:

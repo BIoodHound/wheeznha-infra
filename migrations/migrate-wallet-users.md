@@ -18,9 +18,10 @@ mongoexport --uri="mongodb://localhost:27017/weeznha_wallet" \
 ## Step 2 — Match users to auth.users
 
 Wallet users stored their own passwords; auth-service now owns credentials.
-You MUST register each wallet user in auth-service first (or run the
-shoppinglist migration which already imports users) so that auth.users.id
-exists before inserting into wallet.users (FK constraint).
+Register each wallet user in auth-service first (or run the shoppinglist
+migration which already imports users) so the same user id can be reused.
+Note: wallet.users has NO foreign key into auth.users — the schemas are
+intentionally decoupled — but sharing the id is what links the profiles.
 
 If users are already in auth.users (from the shoppinglist migration):
 
