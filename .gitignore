@@ -9,6 +9,9 @@ weeznha-site/
 nginx/certs/
 keys/
 
+# Local DB backups created by migrations/cutover-shoppinglist.sh
+migrations/backups/
+
 # Build artifacts
 auth-service/target/
 

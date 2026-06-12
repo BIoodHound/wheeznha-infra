@@ -32,8 +32,17 @@ palette.weeznha.com (tunnel) ─▶ palette frontend      ─▶ palette-service
 3. **Start the backend stack** (creates the shared `weeznha-net` network):
 
    ```bash
-   docker compose up -d --build
+   ./deploy.sh
    ```
+
+   `deploy.sh` runs pending data migrations first, then
+   `docker compose up -d --build`. Use it for every deploy — the migration
+   steps are idempotent. The Shoppinglist cutover
+   (`migrations/cutover-shoppinglist.sh`) backs up the legacy standalone DB
+   to `migrations/backups/`, imports users (passwords preserved), lists,
+   items and members into `weeznha_db`, and refuses to run if legacy data
+   exists but its DB container is down — so a deploy can never silently
+   come up empty.
 
 4. **Start each frontend stack** from its own repo (`Shoppinglist/`,
    `weeznha wallet/`, `miniature-palette/`). Each needs a
