@@ -151,6 +151,26 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Cloudflare Tunnel that fronts the nginx gateway at api.weeznha.com so the
+  # weeznha.com Worker can proxy /auth/* (and any future shared endpoints)
+  # without the Pi needing port-forwarding or a public IP. App-frontend stacks
+  # have their own per-subdomain tunnels; this one is exclusively for the
+  # shared gateway.
+  api-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: weeznha-api-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --protocol http2 run
+    environment:
+      TUNNEL_TOKEN: ${API_TUNNEL_TOKEN}
+    depends_on:
+      nginx:
+        condition: service_started
+    networks:
+      - weeznha-net
+    security_opt:
+      - no-new-privileges:true
+
 networks:
   weeznha-net:
     # Fixed name so app frontend stacks (e.g. miniature-palette) can join it
